@@ -11,8 +11,6 @@ pipeline {
             steps {
                sh '''
                which python3
-               which pip
-               which pip3
                python3 add_account.py
                '''
             }
