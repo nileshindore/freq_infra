@@ -14,7 +14,7 @@ def add_data_to_table(data):
         cursor = connection.cursor()
 
         # SQL query to insert data into the table
-        insert_query = "INSERT INTO accounts (id, name) VALUES (%i, %s)"
+        insert_query = "INSERT INTO accounts (id, name) VALUES (%s, %s)"
 
         # Inserting data into the table
         cursor.execute(insert_query, data)
