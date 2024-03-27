@@ -1,0 +1,20 @@
+pipeline {
+    agent any
+
+    parameters {
+    string(name: 'ACCOUNT', defaultValue: '', description: 'AWS Account Name')
+    string(name: 'ID', defaultValue: '', description: 'AWS Account ID')
+    }
+
+    stages {
+        stage("Add Account") {
+            steps {
+               sh '''
+               echo Test
+               echo $ACCOUNT
+               echo $ID
+               '''
+            }
+        }
+    }
+}
