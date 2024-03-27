@@ -10,7 +10,7 @@ pipeline {
         stage("Add Account") {
             steps {
                sh '''
-               sudo brew install mysql-connector-python
+               brew install mysql-connector-python
                python3 add_account.py
                '''
             }
