@@ -10,6 +10,9 @@ pipeline {
         stage("Add Account") {
             steps {
                sh '''
+               virtualenv env
+               source env/bin/activate
+               pip3 install mysql-connector-python
                python3 add_account.py
                '''
             }
