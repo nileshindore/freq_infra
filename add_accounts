@@ -10,9 +10,7 @@ pipeline {
         stage("Add Account") {
             steps {
                sh '''
-               echo Test
-               echo $ACCOUNT
-               echo $ID
+               python3 add_account.py
                '''
             }
         }
