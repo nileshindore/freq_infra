@@ -10,7 +10,8 @@ pipeline {
         stage("Add Account") {
             steps {
                sh '''
-               source env/bin/activate
+               pwd
+               source ./env/bin/activate
                python3 add_account.py
                '''
             }
