@@ -1,8 +1,19 @@
 pipeline {
     agent any
 
+    parameters { 
+      string(name: 'APPNAME', defaultValue: '', description: 'Application Name') 
+      choice(name: 'APPTYPE', choices: ['public', 'private'], description: 'Application Type') 
+      }
+
     stages {
-       
+
+        stage('CleanWorkspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
         stage('checkout') {
             steps{
                 withCredentials([string(credentialsId: 'my_github_token', variable: 'token')]) {
@@ -13,10 +24,10 @@ pipeline {
             }
         }
 
-        stage('test') {
+        stage('Add application') {
             steps {
                 sh '''
-                    echo "test"
+                    scripts/db-functions.py --name $APPNAME --type $APPTYPE
                 '''
             }
         }
