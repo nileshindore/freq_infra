@@ -2,8 +2,9 @@ pipeline {
     agent any
 
     parameters { 
-      string(name: 'APPNAME', defaultValue: '', description: 'Application Name') 
-      choice(name: 'APPTYPE', choices: ['public', 'private'], description: 'Application Type') 
+      string(name: 'ACCOUNT_ID', defaultValue: '', description: 'Account ID') 
+      string(name: 'ACCOUNT_ALIAS', defaultValue: '', description: 'Account alias') 
+      choice(name: 'ACCOUNT_ENV', choices: ['qa', 'stage', 'prod'], description: 'Application Type') 
       }
 
     stages {
@@ -24,10 +25,10 @@ pipeline {
             }
         }
 
-        stage('Add application') {
+        stage('Add Account') {
             steps {
                 sh '''
-                    python3 freq_infra/scripts/add-app.py --name $APPNAME --type $APPTYPE
+                    python3 freq_infra/scripts/add-account.py --id $ACCOUNT_ID --alias $ACCOUNT_ALIAS --env $ACCOUNT_ENV
                 '''
             }
         }

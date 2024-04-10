@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     parameters { 
-      string(name: 'APPNAME', defaultValue: '', description: 'Application Name') 
-      choice(name: 'APPTYPE', choices: ['public', 'private'], description: 'Application Type') 
+      string(name: 'REGION_NAME', defaultValue: '', description: 'Region Name') 
       }
 
     stages {
@@ -24,10 +23,10 @@ pipeline {
             }
         }
 
-        stage('Add application') {
+        stage('Add region') {
             steps {
                 sh '''
-                    python3 freq_infra/scripts/add-app.py --name $APPNAME --type $APPTYPE
+                    python3 freq_infra/scripts/add-region.py --name $REGION_NAME
                 '''
             }
         }
