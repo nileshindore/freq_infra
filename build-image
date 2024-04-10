@@ -1,0 +1,39 @@
+pipeline {
+    agent any
+
+    parameters { 
+      string(name: 'APP_NAME', defaultValue: '', description: 'Application Name') 
+      }
+
+    stages {
+
+        stage('CleanWorkspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('checkout') {
+            steps{
+                withCredentials([string(credentialsId: 'my_github_token', variable: 'token')]) {
+                    sh '''
+                git clone "https://nileshindore:$token@github.com/nileshindore/freq_infra.git"
+                '''
+                }
+            }
+        }
+
+        stage('Build docker image') {
+            steps {
+                sh '''
+                    cd freq_infra
+                    cd $APP_NAME
+                    aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 077497804067.dkr.ecr.us-east-2.amazonaws.com
+                    docker build -t bata .
+                    docker tag bata:latest 077497804067.dkr.ecr.us-east-2.amazonaws.com/$APP_NAME:latest
+                    docker push 077497804067.dkr.ecr.us-east-2.amazonaws.com/$APP_NAME:latest
+                '''
+            }
+        }
+    }
+}
