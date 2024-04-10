@@ -1,0 +1,7 @@
+FROM mysql
+
+ENV MYSQL_ROOT_PASSWORD=root
+ENV MYSQL_DATABASE=BHARATINDEX
+COPY BHARATINDEX_schema.sql /docker-entrypoint-initdb.d/
+EXPOSE 3306
+CMD ["mysqld"]

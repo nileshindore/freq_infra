@@ -1,0 +1,5 @@
+#build image
+docker exec -it mysql mysql -u root -p
+
+#run container
+docker container run --rm -itd -p 3306:3306 --name ci-mysql -e MYSQL_ROOT_PASSWORD=root ci-mysql

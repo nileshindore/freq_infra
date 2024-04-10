@@ -1,0 +1,38 @@
+#start mysql container
+docker container run --rm -itd -p 3306:3306 --name mysql -e MYSQL_ROOT_PASSWORD=root mysql
+
+#Access mysql cli
+docker exec -it mysql mysql -u root -p
+
+#create db and schema
+create database BHARATINDEX;
+
+CREATE TABLE `i_detail` (
+  `i_id` varchar(20) DEFAULT NULL,
+  `i_name` varchar(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO `i_detail` VALUES ('BH01','BHARATINDEX');
+
+CREATE TABLE `i_price` (
+  `i_id` varchar(20) DEFAULT NULL,
+  `i_ttime` timestamp NULL DEFAULT NULL,
+  `i_price` int DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `s_detail` (
+  `s_id` varchar(20) DEFAULT NULL,
+  `s_name` varchar(20) DEFAULT NULL,
+  `s_min` int DEFAULT NULL,
+  `s_max` int DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO `s_detail` VALUES ('BT001','BATA',20,30),('TT001','TATA',40,55);
+
+CREATE TABLE `s_price` (
+  `s_id` varchar(20) DEFAULT NULL,
+  `s_ttime` timestamp NULL DEFAULT NULL,
+  `s_price` int DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
