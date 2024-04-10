@@ -2,8 +2,19 @@ pipeline {
     agent any
 
     stages {
+       
+        stage('checkout') {
+            steps{
+                withCredentials([string(credentialsId: 'my_github_token', variable: 'token')]) {
+                    sh '''
+                git clone "https://nileshindore:$token@github.com/nileshindore/freq_infra.git"
+                '''
+                }
+            }
+        }
+
         stage('test') {
-            step {
+            steps {
                 sh '''
                     echo "test"
                 '''
