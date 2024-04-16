@@ -9,7 +9,6 @@ mysqlHost = os.environ['MYSQL_HOST']
 mysqlUser = os.environ['MYSQL_USER']
 mysqlPassword = os.environ['MYSQL_PASSWORD']
 mysqlDbName = os.environ['MYSQL_DB']
-redisHost = os.environ['REDIS_HOST']
 
 class calcStockPrice:
     def __init__(self,sname,minprice,maxprice):
@@ -23,9 +22,6 @@ class calcStockPrice:
             tick_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             msg = "{},{},{}".format(self.sname , stockPrice , tick_time)
             print(msg)
-            r = redis.Redis(host=redisHost)
-            r.set(self.sname,stockPrice)
-            print("pushed to redis")
             mydb = mysql.connector.connect(host=mysqlHost,user=mysqlUser,passwd=mysqlPassword,db=mysqlDbName)   
             mycursor = mydb.cursor()
             query = "select s_id from s_detail where s_name='%s'" % (self.sname)
