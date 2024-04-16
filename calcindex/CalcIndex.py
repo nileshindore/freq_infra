@@ -16,9 +16,10 @@ while True:
     mycursor.execute(query)
     indexValue = 0
     for stockid in mycursor:
+        cursor = mydb.cursor()
         query = "select s_price from s_price where s_id="+str(stockid)+" ORDER BY s_ttime DESC LIMIT 1"
-        mycursor.execute(query)
-        indexValue += int(mycursor)
+        cursor.execute(query)
+        indexValue += int(cursor)
     query = "select i_id from i_detail where i_name="+mysqlDbName
     mycursor.execute(query)
     i_id = mycursor.fetchone()[0]
