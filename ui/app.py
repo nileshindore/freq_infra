@@ -17,11 +17,11 @@ mysqlDbName = os.environ['MYSQL_DB']
 
 app = Flask(__name__)
 
-@app.route('/')
+@app.route('/index')
 def indexpage():
-    return redirect("/plot.png")
+    return redirect("/index/plot.png")
 
-@app.route('/plot.png')
+@app.route('/index/plot.png')
 def plot():    
     fig = Figure()
     axis = fig.add_subplot(1, 1, 1)
