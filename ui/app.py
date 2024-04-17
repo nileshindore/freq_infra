@@ -11,6 +11,9 @@ from matplotlib.figure import Figure
 import os
 
 mysqlHost = os.environ['MYSQL_HOST']
+mysqlUser = os.environ['MYSQL_USER']
+mysqlPassword = os.environ['MYSQL_PASSWORD']
+mysqlDbName = os.environ['MYSQL_DB']
 
 app = Flask(__name__)
 
@@ -22,7 +25,7 @@ def indexpage():
 def plot():    
     fig = Figure()
     axis = fig.add_subplot(1, 1, 1)
-    mydb = mysql.connector.connect(host=mysqlHost,user='root',passwd='root',db='BHARATINDEX') 
+    mydb = mysql.connector.connect(host=mysqlHost,user=mysqlUser,passwd=mysqlPassword,db=mysqlDbName) 
     mycursor = mydb.cursor()
     query = "select i_ttime,i_price from (select i_ttime,i_price from i_price ORDER BY i_ttime DESC LIMIT 10 )var1 ORDER BY i_ttime"
     mycursor.execute(query)
