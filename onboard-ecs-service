@@ -1,0 +1,352 @@
+    def COMMIT_ID
+    def ECS_IMAGE_TAG
+    def DOCKER_IMAGE_TAG
+    def DOCKER_IMAGE_NAME
+    def ECS_IMAGE_NAME
+    def REPOSITORY_NAME
+    def CLUSTER_NAME
+    def TASK_NAME
+    def SERVICE_NAME
+    def MODULE_PATH
+    
+    pipeline {
+        agent any
+        parameters {
+            choice(name: 'ACCT_ID', choices: ['main','linear-qa'], description: 'Account ID')
+            string(name: 'APP_NAME', defaultValue: '', description: 'Application Name')  
+        }
+
+        options {
+            disableConcurrentBuilds()
+        }
+        environment {
+            ENV = "qa"
+            REGION_NAME = "us-east-2"
+        }
+
+        stages {
+
+            stage("Setting Build") {
+                steps {
+                    wrap([$class: 'BuildUser']) {
+                        script {
+                            def changeLogSets = currentBuild.changeSets
+                            currentBuild.displayName = "#${env.ENV}-#${params.BRANCH}-#${currentBuild.number}"
+                            currentBuild.description = "By: ${BUILD_USER}"
+                        }
+                    }
+                }
+            }
+
+            stage('Cleaning the Workspace') {
+                steps {
+                    step([$class: 'WsCleanup'])
+                }
+            }
+
+            stage('Pulling the Repository') {
+                steps {
+                    echo "Branch: ${params.BRANCH}"
+                    echo "Environment: ${env.ENV}"
+                    script {
+                        def BRANCH_NAME = ""
+                        if (params.BRANCH == null || params.BRANCH.equals("null")) {
+                            BRANCH_NAME = "${env.DEFAULT_BRANCH}"
+                        } else {
+                            BRANCH_NAME = "${params.BRANCH}"
+                        }
+                        def GIT_URL = ""
+                        if ("${params.LOCATION}" == "chicago") {
+                            GIT_URL = "git@bitbucket.org:telescopeinc/ballys-rewards-chicago.git"
+                        } else {
+                            GIT_URL = "git@bitbucket.org:telescopeinc/bally-rewards-lake-tahoe.git"
+                        }
+                        git branch: "${BRANCH_NAME}", url: "${GIT_URL}", credentialsId: 'nilesh-bitbucket-key'
+                    }
+                }
+            }
+            stage('Setting up the Environments') {
+                steps {
+                    script {
+                            COMMIT_ID = sh(returnStdout: true, script: "git rev-parse --short HEAD").trim()
+                            REPOSITORY_NAME = "${env.DEFAULT_ENV}-${env.DEFAULT_PROJECT_NAME}-${params.LOCATION}"
+
+                            def IMAGE_NAME = "${env.REPOSITORY_NUMBER}.dkr.ecr.${env.REGION_NAME}.amazonaws.com/${REPOSITORY_NAME}"
+                            DOCKER_IMAGE_TAG = "${env.ENV}_${COMMIT_ID}"
+                            ECS_IMAGE_TAG = "${env.ENV}_latest"
+                            DOCKER_IMAGE_NAME = "${IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+                            ECS_IMAGE_NAME = "${IMAGE_NAME}:${ECS_IMAGE_TAG}"
+                            
+                            CLUSTER_NAME = "${env.DEFAULT_ENV}-${env.DEFAULT_PROJECT_NAME}"
+                            def ECS_PREFIX = "${env.DEFAULT_PROJECT_NAME}-${params.LOCATION}"
+                            TASK_NAME = "${env.DEFAULT_ENV}-${ECS_PREFIX}"
+                            SERVICE_NAME = "${env.DEFAULT_ENV}-${ECS_PREFIX}"
+
+                            println("========================================================================")
+                            println("REPOSITORY_NAME: " + REPOSITORY_NAME)
+                            println("IMAGE_NAME: " + IMAGE_NAME)
+                            println("DOCKER_IMAGE_NAME: " + DOCKER_IMAGE_NAME)
+                            println("ECS_IMAGE_NAME: " + ECS_IMAGE_NAME)
+                            println("CLUSTER_NAME: " + CLUSTER_NAME)
+                            println("TASK_NAME: " + TASK_NAME)
+                            println("SERVICE_NAME: " + SERVICE_NAME)
+                            println("========================================================================")
+
+                    }
+                }
+            }
+        stage('Setting up Application Environment using SSM') {
+             steps {
+                 script {
+                     sh '''#!/bin/bash
+                         set -xe
+                         echo $WORKSPACE
+                         echo REACT_APP_AUTH0_CLIENT_ID=\$(aws --region us-east-2 ssm get-parameter --name "REACT_APP_AUTH0_CLIENT_ID" --query 'Parameter.Value' --with-decryption) > .env
+                         echo REACT_APP_AUTH0_DOMAIN=\$(aws --region us-east-2 ssm get-parameter --name "REACT_APP_AUTH0_DOMAIN" --query 'Parameter.Value' --with-decryption) >> .env
+                         echo REACT_APP_USER_SERVICE_BASE_URL=\$(aws --region us-east-2 ssm get-parameter --name "REACT_APP_USER_SERVICE_BASE_URL" --query 'Parameter.Value' --with-decryption) >> .env
+                         echo REACT_APP_COOKIE_EXPIRE_DAYS=\$(aws --region us-east-2 ssm get-parameter --name "REACT_APP_COOKIE_EXPIRE_DAYS" --query 'Parameter.Value' --with-decryption) >> .env
+                         echo REACT_APP_X_API_KEY=\$(aws --region us-east-2 ssm get-parameter --name "REACT_APP_X_API_KEY" --query 'Parameter.Value' --with-decryption) >> .env
+                         echo REACT_APP_LAUNCH_DARKLEY_CLIENT_ID=\$(aws --region us-east-2 ssm get-parameter --name "REACT_APP_LAUNCH_DARKLEY_CLIENT_ID" --query 'Parameter.Value' --with-decryption) >> .env
+                         echo REACT_APP_NATIVE_LAUNCH_DARKLY_KEY="mob-e21829ec-5b0a-4e16-9b58-f782cf9ea52d" >> .env
+                         echo REACT_APP_UPLOAD_API_KEY="DmumdQkMbD9NqJJ3LLTsSaiShreMBOJX2QJZ5L4x" >> .env
+                         echo REACT_APP_UPLOAD_BASE_URL="https://nhtbk7csw8.execute-api.us-east-2.amazonaws.com/dev/" >> .env
+                         echo GENERATE_SOURCEMAP=false >> .env
+                         cat .env
+                    '''
+                 }
+            }
+         }
+        
+        stage('Docker Image Build and Push') {
+            steps {
+                script {
+                    sh """#!/bin/bash
+                        set -xe
+                        echo $WORKSPACE
+                        rm -rf coverage
+                        rm -rf node_modules
+                        rm -rf package-lock.json
+                        
+                        echo "Docker Image Push"
+                        aws ecr get-login-password --region ${env.REGION_NAME} | docker login --username AWS --password-stdin ${env.REPOSITORY_NUMBER}.dkr.ecr.${env.REGION_NAME}.amazonaws.com
+                        docker rmi -f ${DOCKER_IMAGE_NAME}
+
+                        docker build -f Dockerfile -t ${DOCKER_IMAGE_NAME} .
+                        docker tag ${DOCKER_IMAGE_NAME} ${ECS_IMAGE_NAME}
+                        docker push ${ECS_IMAGE_NAME}
+                        docker push ${DOCKER_IMAGE_NAME}
+
+                        if [ \$? -eq 0 ]
+                        then
+                            echo "Successfully image tagged and pushed to repository"
+                            echo ${DOCKER_IMAGE_NAME} > $WORKSPACE/image_id
+                            cat $WORKSPACE/image_id
+                        else
+                            echo "Error in tagging/pushing image"
+                            exit 1
+                        fi
+                    """
+                }
+            }
+        }
+        stage('Registering New Task') {
+            steps {
+                script {
+                    sh """#!/bin/bash
+                        set -xe
+                        echo $WORKSPACE
+                        NEW_DOCKER_IMAGE=`cat $WORKSPACE/image_id`
+                        OLD_TASK_DEF=\$(aws ecs describe-task-definition \
+                            --task-definition ${TASK_NAME} \
+                            --output json \
+                            --region ${env.REGION_NAME})
+                        NEW_TASK_DEF=\$(echo \$OLD_TASK_DEF | jq --arg NDI \$NEW_DOCKER_IMAGE '.taskDefinition.containerDefinitions[0].image=\$NDI')
+                        
+                        FINAL_TASK=\$(echo \$NEW_TASK_DEF | jq '.taskDefinition|{family: .family, networkMode: .networkMode, volumes: .volumes, containerDefinitions: .containerDefinitions, placementConstraints: .placementConstraints,  memory: .memory, cpu: .cpu, executionRoleArn: .executionRoleArn}')
+
+                        FINAL_TASK_FOR_ROLLBACK=\$(echo \$OLD_TASK_DEF| jq  '.taskDefinition|{family: .family, networkMode: .networkMode, volumes: .volumes, containerDefinitions: .containerDefinitions, placementConstraints: .placementConstraints,  memory: .memory, cpu: .cpu, executionRoleArn: .executionRoleArn}')
+                        
+                        echo -n \$FINAL_TASK_FOR_ROLLBACK > FINAL_TASK_FOR_ROLLBACK
+                        
+                        TASK_OUTPUT=\$(aws ecs register-task-definition \
+                            --family ${TASK_NAME} \
+                            --cli-input-json "\$(echo \$FINAL_TASK)"  \
+                            --task-role-arn arn:aws:iam::${env.REPOSITORY_NUMBER}:role/${TASK_NAME}-ecsTaskRole \
+                            --requires-compatibilities "FARGATE" \
+                            --region ${env.REGION_NAME})
+
+                        if [ \$? -eq 0 ]
+                        then
+                            echo "New task has been registered"
+                        else
+                            echo "Error in task registration"
+                            exit 1
+                        fi
+                    """
+                }
+            }
+        }
+        stage('Updating Service') {
+            steps {
+                script {
+                    sh """#!/bin/bash
+                        set -xe
+                        echo $WORKSPACE
+                        aws ecs update-service \
+                            --service ${SERVICE_NAME}  \
+                            --task-definition ${TASK_NAME} \
+                            --cluster ${CLUSTER_NAME}  \
+                            --region ${env.REGION_NAME}
+                        
+                        aws ecs wait services-stable \
+                            --region ${env.REGION_NAME} \
+                            --cluster ${CLUSTER_NAME} \
+                            --services ${SERVICE_NAME}
+                        if [ \$? -eq 0 ];
+                        then
+                            echo "ECS Service updated successfully"
+                        else
+                            echo "Error while updating ECS Service"
+                            exit 1
+                        fi
+                    """
+                }
+            }
+        }
+        stage('Post Build Cleanup') {
+            steps {
+                sh '''
+                #!/bin/bash
+                echo "Number of Images to Delete"
+                docker images | wc -l
+                docker ps -a -f status=exited -q | xargs -r docker rm -v
+                docker image prune --force --all
+            '''
+            }
+        }
+    }
+}
+
+
+pipeline {
+    agent any
+
+    parameters { 
+      string(name: 'ACCOUNT_ID', defaultValue: '', description: 'Account ID') 
+      string(name: 'ACCOUNT_ALIAS', defaultValue: '', description: 'Account alias') 
+      choice(name: 'ACCOUNT_ENV', choices: ['qa', 'stage', 'prod'], description: 'Application Type') 
+      }
+
+    stages {
+
+        stage('CleanWorkspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('checkout') {
+            steps{
+                withCredentials([string(credentialsId: 'my_github_token', variable: 'token')]) {
+                    sh '''
+                git clone "https://nileshindore:$token@github.com/nileshindore/freq_infra.git"
+                '''
+                }
+            }
+        }
+
+        stage('Setting up the Environments') {
+            steps {
+                script {
+                        COMMIT_ID = sh(returnStdout: true, script: "git rev-parse --short HEAD").trim()
+                        REPOSITORY_NAME = "${env.APP_NAME}"
+
+                        def IMAGE_NAME = "${env.ACCT_ID}.dkr.ecr.${env.REGION_NAME}.amazonaws.com/${REPOSITORY_NAME}"
+                        IMAGE_TAG_WITH_COMMIT_ID = "${env.ENV}_${COMMIT_ID}"
+                        IMAGE_TAG_LATEST = "${env.ENV}_latest"
+                        IMAGE_NAME_WITH_COMMIT_ID = "${IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+                        IMAGE_NAME_LATEST = "${IMAGE_NAME}:${ECS_IMAGE_TAG}"
+                        
+                        CLUSTER_NAME = "pocqa-freq"
+                        TASK_NAME = "${env.APP_NAME}"
+                        SERVICE_NAME = "${env.APP_NAME}"
+
+                        println("========================================================================")
+                        println("REPOSITORY_NAME: " + REPOSITORY_NAME)
+                        println("IMAGE_NAME: " + IMAGE_NAME)
+                        println("IMAGE_NAME_WITH_COMMIT_ID: " + IMAGE_NAME_WITH_COMMIT_ID)
+                        println("IMAGE_NAME_LATEST: " + IMAGE_NAME_LATEST)
+                        println("CLUSTER_NAME: " + CLUSTER_NAME)
+                        println("TASK_NAME: " + TASK_NAME)
+                        println("SERVICE_NAME: " + SERVICE_NAME)
+                        println("========================================================================")
+
+                }
+            }
+        }
+
+        stage('Docker Image Build and Push') {
+            steps {
+                script {
+                    sh """#!/bin/bash
+                        set -xe
+                        echo $WORKSPACE
+                        
+                        echo "Docker Image Push"
+                        aws ecr get-login-password --region ${env.REGION_NAME} | docker login --username AWS --password-stdin ${env.ACCT_ID}.dkr.ecr.${env.REGION_NAME}.amazonaws.com
+
+                        docker build -f Dockerfile -t ${IMAGE_NAME_WITH_COMMIT_ID} .
+                        docker tag ${IMAGE_NAME_WITH_COMMIT_ID} ${IMAGE_NAME_LATEST}
+                        docker push ${IMAGE_NAME_WITH_COMMIT_ID}
+                        docker push ${IMAGE_NAME_LATEST}
+
+                        if [ \$? -eq 0 ]
+                        then
+                            echo "Successfully image tagged and pushed to repository"
+                            echo ${IMAGE_NAME_WITH_COMMIT_ID} > $WORKSPACE/image_id
+                            cat $WORKSPACE/image_id
+                        else
+                            echo "Error in tagging/pushing image"
+                            exit 1
+                        fi
+                    """
+                }
+            }
+        }
+        stage('Registering New Task') {
+            steps {
+                script {
+                    sh """#!/bin/bash
+                        set -xe
+                        echo $WORKSPACE
+                        NEW_DOCKER_IMAGE=`cat $WORKSPACE/image_id`
+                        OLD_TASK_DEF=\$(aws ecs describe-task-definition \
+                            --task-definition ${TASK_NAME} \
+                            --output json \
+                            --region ${env.REGION_NAME})
+                        NEW_TASK_DEF=\$(echo \$OLD_TASK_DEF | jq --arg NDI \$NEW_DOCKER_IMAGE '.taskDefinition.containerDefinitions[0].image=\$NDI')
+                        
+                        FINAL_TASK=\$(echo \$NEW_TASK_DEF | jq '.taskDefinition|{family: .family, networkMode: .networkMode, volumes: .volumes, containerDefinitions: .containerDefinitions, placementConstraints: .placementConstraints,  memory: .memory, cpu: .cpu, executionRoleArn: .executionRoleArn}')
+
+                        FINAL_TASK_FOR_ROLLBACK=\$(echo \$OLD_TASK_DEF| jq  '.taskDefinition|{family: .family, networkMode: .networkMode, volumes: .volumes, containerDefinitions: .containerDefinitions, placementConstraints: .placementConstraints,  memory: .memory, cpu: .cpu, executionRoleArn: .executionRoleArn}')
+                        
+                        echo -n \$FINAL_TASK_FOR_ROLLBACK > FINAL_TASK_FOR_ROLLBACK
+                        
+                        TASK_OUTPUT=\$(aws ecs register-task-definition \
+                            --family ${TASK_NAME} \
+                            --cli-input-json "\$(echo \$FINAL_TASK)"  \
+                            --task-role-arn arn:aws:iam::${env.REPOSITORY_NUMBER}:role/${TASK_NAME}-ecsTaskRole \
+                            --requires-compatibilities "FARGATE" \
+                            --region ${env.REGION_NAME})
+
+                        if [ \$? -eq 0 ]
+                        then
+                            echo "New task has been registered"
+                        else
+                            echo "Error in task registration"
+                            exit 1
+                        fi
+                    """
+                }
+            }
+        }
