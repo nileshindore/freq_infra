@@ -6,7 +6,7 @@ parser.add_argument('--name', help='Repository Name')
 
 args = parser.parse_args()
 if args.name:
-    client = boto3.client("ecr")
+    client = boto3.client("ecr",region='us-east-2update')
     client.create_repository(args.name)
 else:
     print("Repository name need to provide.")
