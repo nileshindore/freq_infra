@@ -8,3 +8,5 @@ args = parser.parse_args()
 if args.name:
     client = boto3.client("ecr")
     client.create_repository(args.name)
+else:
+    print("Repository name need to provide.")
