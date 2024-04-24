@@ -9,7 +9,7 @@ def add_data_to_table(data):
     try:
         # Establishing a connection to the MySQL database
         connection = mysql.connector.connect(
-            host="3.149.245.33",
+            host="3.139.240.69",
             user="jenkins",
             password="jenkins",
             database="freq_infra"
